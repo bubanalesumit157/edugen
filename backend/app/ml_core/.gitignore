@@ -1,0 +1,53 @@
+.env
+venv/
+__pycache__/
+*.pyc
+vectorstore/
+data/
+
+# === Python virtual environment ===
+menv/
+venv/
+env/
+.venv/
+ENV/
+
+# === Python cache ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+
+# === Build / Distribution ===
+build/
+dist/
+*.egg-info/
+*.egg
+
+# === Jupyter ===
+.ipynb_checkpoints/
+*.ipynb
+
+# === Logs ===
+*.log
+
+# === OS / Editor files ===
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# === Data / Outputs (optional) ===
+*.csv
+*.parquet
+data/
+datasets/
+outputs/
+models/
+checkpoints/
+
+# === Environment & Secrets ===
+.env
+*.key
+*.pem

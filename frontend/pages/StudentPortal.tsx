@@ -20,16 +20,22 @@ const StudentPortal: React.FC = () => {
   const handleSubmit = async () => {
     if (!answer) return;
     setIsSubmitting(true);
-    // Simulate AI Grading
+    
+    // MOCK IDs for demo purposes (since we don't have login state in this file yet)
+    const MOCK_ASSIGNMENT_ID = "test-assignment-uuid"; 
+    const MOCK_STUDENT_ID = 1; 
+
+    // Call the updated service
     const result = await autoGradeSubmission(
-        assignment.description, 
-        answer, 
-        "Supervised learning uses labeled data (input-output pairs) to train models (e.g., classification, regression), whereas unsupervised learning analyzes unlabeled data to find hidden patterns or structures (e.g., clustering, dimensionality reduction)."
+        MOCK_ASSIGNMENT_ID,
+        MOCK_STUDENT_ID,
+        answer
     );
+    
     setFeedback(result);
     setIsSubmitting(false);
   };
-
+  
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="flex justify-between items-end mb-8">

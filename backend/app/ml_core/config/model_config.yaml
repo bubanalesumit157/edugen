@@ -1,0 +1,236 @@
+# ML Analytics Module - Model Configuration
+# Configuration for all ML models and training parameters
+
+# Deep Knowledge Tracing (DKT) Model
+dkt:
+  model:
+    hidden_dim: 128
+    num_layers: 2
+    dropout: 0.2
+    embedding_dim: 128
+
+  training:
+    num_epochs: 50
+    learning_rate: 0.001
+    batch_size: 32
+    early_stopping_patience: 5
+    optimizer: adam
+    loss_function: binary_crossentropy
+    gradient_clip: 1.0
+
+  data:
+    max_sequence_length: 50
+    train_test_split: 0.8
+    validation_split: 0.2
+    min_sequence_length: 3
+
+  paths:
+    model_checkpoint: models/model_checkpoints/dkt_best.pt
+    training_data: data/synthetic/knowledge_states.csv
+
+
+# Performance Predictor (Random Forest)
+performance_predictor:
+  model:
+    task: classification  # classification or regression
+    n_estimators: 100
+    max_depth: 10
+    min_samples_split: 20
+    min_samples_leaf: 10
+    random_state: 42
+
+  training:
+    train_test_split: 0.8
+    cross_validation_folds: 5
+
+  features:
+    target_column: performance_class  # or recent_avg_score for regression
+    pass_threshold: 0.6  # Accuracy threshold for pass/fail
+
+  risk_levels:
+    high_risk_threshold: 0.7
+    medium_risk_threshold: 0.4
+
+  paths:
+    model_checkpoint: models/model_checkpoints/performance_predictor.pkl
+    training_data: data/synthetic/performance_history.csv
+
+
+# Feature Engineering
+feature_engineering:
+  student_features:
+    min_attempts_threshold: 3
+    recent_window_ratio: 0.3  # Last 30% of attempts
+    rolling_window_size: 5
+    expected_attempts: 20  # For completion rate calculation
+
+  topic_features:
+    min_topic_attempts: 3
+    mastery_thresholds:
+      mastered: 0.85
+      proficient: 0.70
+      developing: 0.50
+      novice: 0.0
+
+  temporal_features:
+    window_size: 5
+    include_momentum: true
+    include_cumulative: true
+
+  bloom_taxonomy_levels:
+    - Remember
+    - Understand
+    - Apply
+    - Analyze
+    - Evaluate
+    - Create
+
+  difficulty_levels:
+    Easy: 1
+    Medium: 2
+    Hard: 3
+    Advanced: 4
+
+
+# Student Analytics
+analytics:
+  performance_tiers:
+    excellent: 0.85
+    good: 0.70
+    average: 0.55
+    below_average: 0.40
+    struggling: 0.0
+
+  at_risk_criteria:
+    accuracy_threshold: 0.50
+    attempts_threshold: 10
+    negative_velocity_threshold: -0.10
+
+  intervention_triggers:
+    high_priority:
+      - accuracy < 0.40
+      - learning_velocity < -0.15
+      - recent_accuracy < 0.35
+
+    medium_priority:
+      - accuracy < 0.55
+      - learning_velocity < -0.05
+      - completion_rate < 0.30
+
+    low_priority:
+      - accuracy < 0.70
+      - consistency_score < 0.50
+
+
+# Adaptive Personalization
+personalization:
+  recommendation_strategy: knowledge_gap_first  # Options: knowledge_gap_first, difficulty_progression, mixed
+
+  difficulty_progression:
+    initial_difficulty: Medium
+    progression_rules:
+      mastered: increase_difficulty
+      proficient: maintain_difficulty
+      developing: maintain_difficulty
+      novice: decrease_difficulty
+
+  topic_selection:
+    max_topics_per_session: 3
+    prioritize_weak_topics: true
+    weak_topic_threshold: 0.60
+    maintain_strong_topics_ratio: 0.2  # 20% review of strong topics
+
+  assignment_generation:
+    default_num_questions: 10
+    min_questions: 5
+    max_questions: 20
+    difficulty_distribution:
+      easy: 0.2
+      medium: 0.5
+      hard: 0.3
+
+
+# Explainability (SHAP)
+explainability:
+  shap:
+    num_background_samples: 100
+    max_display_features: 10
+    enable_plots: false  # Set true for visualization
+
+  feature_importance:
+    top_n_features: 15
+    include_correlations: true
+
+  explanation_verbosity: detailed  # Options: brief, detailed, comprehensive
+
+
+# Data Paths
+data_paths:
+  synthetic_data_dir: data/synthetic
+  processed_data_dir: data/processed
+  model_checkpoints_dir: models/model_checkpoints
+
+  student_records: data/synthetic/student_records.csv
+  learning_sequences: data/synthetic/learning_sequences.csv
+  performance_history: data/synthetic/performance_history.csv
+  knowledge_states: data/synthetic/knowledge_states.csv
+
+
+# Logging and Monitoring
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR
+  log_file: logs/ml_analytics.log
+  enable_console: true
+
+  metrics_tracking:
+    track_training_time: true
+    track_inference_time: true
+    track_feature_importance: true
+
+
+# System Configuration
+system:
+  device: cpu  # cpu or cuda
+  num_workers: 4
+  random_seed: 42
+  enable_warnings: false
+
+
+# Subjects and Topics (for validation)
+curriculum:
+  subjects:
+    Physics:
+      - Electrostatics
+      - Current Electricity
+      - Magnetic Effects of Current
+      - Electromagnetic Induction
+      - Optics
+      - Modern Physics
+      - Mechanics
+      - Thermodynamics
+      - Waves
+      - Atomic Structure
+
+    Chemistry:
+      - Chemical Kinetics
+      - Electrochemistry
+      - Solutions
+      - Surface Chemistry
+      - Organic Chemistry
+      - Coordination Compounds
+      - p-Block Elements
+      - d-f Block Elements
+      - Haloalkanes
+      - Polymers
+
+    Mathematics:
+      - Calculus
+      - Algebra
+      - Trigonometry
+      - Probability
+      - Statistics
+      - Vectors
+      - Differential Equations
+      - Linear Programming
+      - Matrices
+      - Relations and Functions

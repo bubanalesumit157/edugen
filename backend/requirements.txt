@@ -1,0 +1,20 @@
+# Web Framework
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+python-jose[cryptography]
+passlib[bcrypt]
+
+# ML & Data (From EduGenAI-main)
+pandas
+numpy
+scikit-learn
+shap
+langchain
+langchain-groq
+langchain-huggingface
+langchain-community
+faiss-cpu
+pypdf
+sentence-transformers

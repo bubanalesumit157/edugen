@@ -1,181 +1,135 @@
 import React, { useState } from 'react';
-import { BookOpen, CheckCircle, Clock, AlertCircle } from 'lucide-react';
-import { autoGradeSubmission } from '../services/geminiService';
+import { autoGradeSubmission, getAssignment } from '../services/geminiService';
+import { getCurrentUser } from '../services/authService';
 
-const StudentPortal: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'todo' | 'completed'>('todo');
-  
-  // Mock Active Assignment
-  const assignment = {
-    title: "Intro to ML Algorithms",
-    description: "Explain the differences between Supervised and Unsupervised Learning.",
-    type: "Short Essay",
-    dueDate: "Tomorrow, 11:59 PM"
-  };
-
+const StudentPortal = () => {
+  const [step, setStep] = useState(1); // 1 = Search, 2 = Answer
+  const [assignmentId, setAssignmentId] = useState('');
+  const [assignmentData, setAssignmentData] = useState<any>(null);
   const [answer, setAnswer] = useState('');
-  const [feedback, setFeedback] = useState<{score: number, feedback: string} | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!answer) return;
-    setIsSubmitting(true);
-    
-    // MOCK IDs for demo purposes (since we don't have login state in this file yet)
-    const MOCK_ASSIGNMENT_ID = "test-assignment-uuid"; 
-    const MOCK_STUDENT_ID = 1; 
-
-    // Call the updated service
-    const result = await autoGradeSubmission(
-        MOCK_ASSIGNMENT_ID,
-        MOCK_STUDENT_ID,
-        answer
-    );
-    
-    setFeedback(result);
-    setIsSubmitting(false);
+  // Step 1: Fetch the Assignment Details
+  const handleLoadAssignment = async () => {
+    if (!assignmentId) return alert("Please enter an ID");
+    setLoading(true);
+    try {
+      const data = await getAssignment(assignmentId);
+      setAssignmentData(data);
+      setStep(2); // Move to next screen
+    } catch (error) {
+      alert("Assignment not found! Check the ID.");
+    } finally {
+      setLoading(false);
+    }
   };
-  
+
+  // Step 2: Submit the Answer
+  const handleSubmit = async () => {
+    const user = getCurrentUser();
+    if (!user) return alert("Please login first");
+
+    setLoading(true);
+    try {
+      const result = await autoGradeSubmission(assignmentId, user.id, answer);
+      setFeedback(result);
+    } catch (error) {
+      alert("Error submitting assignment.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <div className="flex justify-between items-end mb-8">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-900">Student Portal</h2>
-          <p className="text-slate-500 mt-2">Track your progress and submit assignments.</p>
-        </div>
-        <div className="flex bg-slate-100 p-1 rounded-lg">
-           <button 
-             onClick={() => setActiveTab('todo')}
-             className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'todo' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}
-           >
-             To Do
-           </button>
-           <button 
-             onClick={() => setActiveTab('completed')}
-             className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'completed' ? 'bg-white shadow text-indigo-600' : 'text-slate-500'}`}
-           >
-             Completed
-           </button>
-        </div>
-      </div>
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">Student Portal</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          {activeTab === 'todo' ? (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="p-6 border-b border-slate-100 bg-indigo-50">
-                  <div className="flex justify-between items-start">
-                    <div>
-                        <h3 className="text-xl font-bold text-slate-800">{assignment.title}</h3>
-                        <span className="inline-block mt-2 px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-full">
-                            {assignment.type}
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-3 py-1 rounded-full text-sm">
-                        <Clock className="w-4 h-4" />
-                        <span className="font-medium">{assignment.dueDate}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="p-6 space-y-6">
-                    <div>
-                        <h4 className="font-medium text-slate-900 mb-2">Question:</h4>
-                        <p className="text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-lg border border-slate-200">
-                            {assignment.description}
-                        </p>
-                    </div>
+      {/* --- STEP 1: LOAD ASSIGNMENT --- */}
+      {step === 1 && (
+        <div className="bg-white p-8 rounded-xl shadow-md border border-gray-100">
+          <h2 className="text-xl font-semibold mb-4">Load Assignment</h2>
+          <div className="flex gap-4">
+            <input 
+              className="flex-1 border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" 
+              placeholder="Paste Assignment ID here (e.g., 550e84...)" 
+              value={assignmentId}
+              onChange={(e) => setAssignmentId(e.target.value.trim())}
+            />
+            <button 
+              onClick={handleLoadAssignment} 
+              disabled={loading}
+              className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50"
+            >
+              {loading ? 'Loading...' : 'Load'}
+            </button>
+          </div>
+        </div>
+      )}
 
-                    {!feedback ? (
-                        <div>
-                            <label className="block font-medium text-slate-900 mb-2">Your Answer:</label>
-                            <textarea 
-                                value={answer}
-                                onChange={(e) => setAnswer(e.target.value)}
-                                className="w-full h-40 p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-none"
-                                placeholder="Type your response here..."
-                            />
-                            <div className="mt-4 flex justify-end">
-                                <button 
-                                    onClick={handleSubmit}
-                                    disabled={isSubmitting || !answer}
-                                    className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                                >
-                                    {isSubmitting ? 'Grading...' : 'Submit Assignment'}
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 animate-fade-in">
-                            <div className="flex items-center gap-3 mb-4">
-                                <CheckCircle className="w-8 h-8 text-emerald-600" />
-                                <div>
-                                    <h4 className="font-bold text-emerald-900 text-lg">Submission Graded</h4>
-                                    <p className="text-emerald-700 text-sm">AI Auto-Grading Complete</p>
-                                </div>
-                                <div className="ml-auto text-4xl font-bold text-emerald-600">
-                                    {feedback.score}<span className="text-lg text-emerald-400">/100</span>
-                                </div>
-                            </div>
-                            <div className="bg-white/60 p-4 rounded-lg">
-                                <p className="font-medium text-emerald-800 mb-1">Feedback:</p>
-                                <p className="text-emerald-700">{feedback.feedback}</p>
-                            </div>
-                            <button 
-                                onClick={() => {setFeedback(null); setAnswer('');}}
-                                className="mt-4 text-emerald-700 hover:underline text-sm"
-                            >
-                                Try another response (Demo)
-                            </button>
-                        </div>
-                    )}
-                </div>
+      {/* --- STEP 2: VIEW & ANSWER --- */}
+      {step === 2 && assignmentData && (
+        <div className="space-y-6">
+          {/* Assignment Header */}
+          <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-bold text-indigo-900">{assignmentData.title}</h2>
+                <p className="text-indigo-600 mt-1">Topic: {assignmentData.topic} • Difficulty: {assignmentData.difficulty}</p>
               </div>
-          ) : (
-            <div className="text-center py-20 text-slate-400">
-                <CheckCircle className="w-16 h-16 mx-auto mb-4 text-slate-200" />
-                <p className="text-lg">No completed assignments to show in this demo.</p>
+              <button onClick={() => setStep(1)} className="text-sm text-gray-500 underline">Change Assignment</button>
+            </div>
+          </div>
+
+          {/* Question Display */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <h3 className="text-lg font-semibold mb-3">Question:</h3>
+            <div className="prose bg-gray-50 p-4 rounded-lg text-gray-800">
+              {/* Display the first question text (simplification for demo) */}
+              {assignmentData.questions && assignmentData.questions[0] ? (
+                <p>{assignmentData.questions[0].text}</p>
+              ) : (
+                <p>No questions found in this assignment data.</p>
+              )}
+            </div>
+          </div>
+
+          {/* Answer Input */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Your Answer</label>
+            <textarea 
+              className="w-full border border-gray-300 p-4 rounded-lg h-40 focus:ring-2 focus:ring-indigo-500 outline-none" 
+              placeholder="Type your answer here..."
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+            />
+            <div className="mt-4 flex justify-end">
+              <button 
+                onClick={handleSubmit} 
+                disabled={loading}
+                className="bg-green-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-green-700 transition shadow-lg disabled:opacity-50"
+              >
+                {loading ? 'Grading...' : 'Submit & Grade'}
+              </button>
+            </div>
+          </div>
+
+          {/* AI Feedback Result */}
+          {feedback && (
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-300 mt-6 animate-fade-in">
+              <div className="flex items-center gap-4 mb-4">
+                <div className={`text-4xl font-bold ${feedback.score >= 70 ? 'text-green-600' : 'text-orange-500'}`}>
+                  {feedback.score}%
+                </div>
+                <div className="text-gray-600 font-medium">AI Grading Result</div>
+              </div>
+              <div className="bg-white p-4 rounded-lg border border-gray-200">
+                <p className="whitespace-pre-wrap text-gray-700 leading-relaxed">{feedback.feedback}</p>
+              </div>
             </div>
           )}
         </div>
-
-        {/* Sidebar Info */}
-        <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2">
-                    <BookOpen className="w-5 h-5 text-indigo-500" />
-                    Course Material
-                </h3>
-                <ul className="space-y-3">
-                    <li className="flex items-center justify-between text-sm p-2 hover:bg-slate-50 rounded cursor-pointer transition-colors">
-                        <span className="text-slate-600">Lecture 1: Introduction</span>
-                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">Viewed</span>
-                    </li>
-                    <li className="flex items-center justify-between text-sm p-2 hover:bg-slate-50 rounded cursor-pointer transition-colors">
-                        <span className="text-slate-600">Lecture 2: Supervised Learning</span>
-                        <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">Viewed</span>
-                    </li>
-                    <li className="flex items-center justify-between text-sm p-2 hover:bg-slate-50 rounded cursor-pointer transition-colors">
-                        <span className="text-slate-600">Textbook: Chapter 4</span>
-                        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded">Unread</span>
-                    </li>
-                </ul>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 p-6 rounded-xl">
-                <h3 className="font-bold text-amber-900 mb-2 flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5" />
-                    Upcoming Exam
-                </h3>
-                <p className="text-sm text-amber-800 mb-4">
-                    Mid-term evaluation is scheduled for next Tuesday. Review your past assignments to prepare.
-                </p>
-                <button className="w-full bg-amber-200 text-amber-900 py-2 rounded font-medium hover:bg-amber-300 transition-colors">
-                    View Study Guide
-                </button>
-            </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

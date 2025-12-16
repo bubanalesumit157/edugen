@@ -2,9 +2,11 @@ import os
 import glob
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from src.database.db_connection import create_new_db
+from app.ml_core.src.database.db_connection import create_new_db
+from app.ml_core.src.retrieval.retriever import get_embeddings
 
-def load_and_process_pdfs(data_folder="./data/raw"):
+# USE YOUR ABSOLUTE PATH HERE
+def load_and_process_pdfs(data_folder=r"C:\Users\Sourabh\Downloads\edugen\backend\app\ml_core\data\raw"):
     """
     Loads all PDFs, splits them, and creates a local FAISS index.
     """
@@ -12,7 +14,8 @@ def load_and_process_pdfs(data_folder="./data/raw"):
     pdf_files = glob.glob(os.path.join(data_folder, "**", "*.pdf"), recursive=True)
     
     if not pdf_files:
-        print(f"❌ No PDFs found in {data_folder}. Please add files to data/raw/physics etc.")
+        print(f"❌ No PDFs found in {data_folder}.")
+        print(f"   --> Please ensure your PDF is inside: {data_folder}")
         return
 
     print(f"🔎 Found {len(pdf_files)} PDF(s). Processing...")

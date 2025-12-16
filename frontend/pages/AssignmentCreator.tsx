@@ -1,7 +1,7 @@
- import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { Sparkles, Save, Loader2, Download, RefreshCw } from 'lucide-react';
-import { generateContent } from '../services/geminiService';
-import { AssignmentType, Difficulty, Question } from '../types';
+import { generateContent, saveAssignment } from '../services/geminiService'; // Added saveAssignment
+import { Assignment, AssignmentType, Difficulty, Question } from '../types'; // Added Assignment
 
 const AssignmentCreator: React.FC = () => {
   const [topic, setTopic] = useState('');
@@ -10,6 +10,7 @@ const AssignmentCreator: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([]);
   const [hasGenerated, setHasGenerated] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // New state for save loading
 
   const handleGenerate = async () => {
     if (!topic.trim()) return;
@@ -21,6 +22,40 @@ const AssignmentCreator: React.FC = () => {
     
     setLoading(false);
     setHasGenerated(true);
+  };
+
+  // --- NEW: Handle Save Logic ---
+  const handleSave = async () => {
+    if (!generatedQuestions.length) return;
+    setIsSaving(true);
+
+    // 1. Construct the Assignment Object
+    const newAssignment: Assignment = {
+      id: crypto.randomUUID(), // Generates a unique ID (e.g., "550e8400-e29b...")
+      title: `${topic} Assessment`,
+      subject: "General", // Hardcoded for now (or add a dropdown input)
+      topic: topic,
+      type: type,
+      difficulty: difficulty,
+      questions: generatedQuestions,
+      status: "Published", // Mark as published so students can see it
+      due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // Due in 7 days
+    };
+
+    try {
+      // 2. Call the Backend
+      const result = await saveAssignment(newAssignment);
+      
+      console.log("✅ Saved Assignment ID:", result.id);
+      alert(`Assignment Saved Successfully!\n\nShare this ID with students:\n${result.id}`);
+      
+      // Optional: Reset form or redirect
+    } catch (error) {
+      console.error("Failed to save:", error);
+      alert("Failed to save assignment. Check console for details.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -111,14 +146,20 @@ const AssignmentCreator: React.FC = () => {
             {hasGenerated && (
                <div className="flex gap-2">
                  <button className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Regenerate">
-                    <RefreshCw className="w-5 h-5" />
+                   <RefreshCw className="w-5 h-5" />
                  </button>
                  <button className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Export PDF">
-                    <Download className="w-5 h-5" />
+                   <Download className="w-5 h-5" />
                  </button>
-                 <button className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium transition-colors">
-                    <Save className="w-4 h-4" />
-                    Save Assignment
+                 
+                 {/* --- UPDATED SAVE BUTTON --- */}
+                 <button 
+                    onClick={handleSave} 
+                    disabled={isSaving}
+                    className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium transition-colors disabled:opacity-70"
+                 >
+                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                   {isSaving ? "Saving..." : "Save Assignment"}
                  </button>
                </div>
             )}
@@ -136,8 +177,8 @@ const AssignmentCreator: React.FC = () => {
             {loading && (
               <div className="h-full flex flex-col items-center justify-center text-indigo-600 space-y-4">
                  <div className="relative w-20 h-20">
-                    <div className="absolute inset-0 border-4 border-indigo-200 rounded-full animate-pulse"></div>
-                    <div className="absolute inset-0 border-4 border-t-indigo-600 rounded-full animate-spin"></div>
+                   <div className="absolute inset-0 border-4 border-indigo-200 rounded-full animate-pulse"></div>
+                   <div className="absolute inset-0 border-4 border-t-indigo-600 rounded-full animate-spin"></div>
                  </div>
                  <p className="font-medium animate-pulse">Consulting the knowledge base...</p>
               </div>

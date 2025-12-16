@@ -3,10 +3,11 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-
+from dotenv import load_dotenv
+load_dotenv()  # This loads the variables from .env
 # Import local modules
 from . import models, schemas, auth, database
-from .routers import assignments, student
+from .routers import assignments, students
 
 # --- Database Initialization ---
 # This automatically creates all tables (users, assignments, etc.) in the database 
@@ -24,9 +25,11 @@ app = FastAPI(
 # This is CRITICAL for React to talk to FastAPI.
 # We allow requests from your frontend (usually running on localhost:5173 or 3000)
 origins = [
-    "http://localhost:5173", # Vite default
-    "http://localhost:3000", # CRA default
-    "http://127.0.0.1:5173"
+    "http://localhost:5173",    # Vite default
+    "http://127.0.0.1:5173",    # Vite IP
+    "http://localhost:3000",    # React default
+    "http://127.0.0.1:3000",    # React IP
+    "http://localhost:8000",    # Self-reference
 ]
 
 app.add_middleware(
@@ -98,7 +101,7 @@ async def read_users_me(current_user: models.User = Depends(auth.get_current_use
 # --- Include Specific Routers ---
 # This keeps main.py clean by offloading logic to dedicated files.
 app.include_router(assignments.router, prefix="/assignments", tags=["Assignments"])
-app.include_router(student.router, prefix="/student", tags=["Student Portal"])
+app.include_router(students.router, prefix="/student", tags=["Student Portal"])
 
 # --- Health Check ---
 @app.get("/")

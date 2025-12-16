@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from .. import schemas, models
 from ..database import get_db
-from services.rag_pipeline import generate_questions
-from services.ml_engine import analyze_assignment_pedagogy
+from .. services.rag_pipeline import generate_questions
+from .. services.ml_engine import analyze_assignment_pedagogy
 import uuid
-
+from fastapi import HTTPException
 router = APIRouter()
 
 @router.post("/generate")
@@ -18,11 +18,20 @@ async def generate_assignment_content(request: schemas.GenerateRequest):
     questions = await generate_questions(request.topic, request.difficulty, request.type)
     return questions
 
+# ... imports ...
+
 @router.post("/create")
 def create_assignment(assignment: schemas.AssignmentCreate, db: Session = Depends(get_db)):
     """
     Saves the final approved assignment to Postgres
     """
+    # FIX: Convert the list of Pydantic 'Question' objects to a list of dicts
+    # Pydantic v2 uses .model_dump(), v1 uses .dict()
+    # Using jsonable_encoder is also a safe bet for FastAPI
+    from fastapi.encoders import jsonable_encoder
+    
+    questions_data = jsonable_encoder(assignment.questions)
+
     db_assignment = models.Assignment(
         id=assignment.id,
         title=assignment.title,
@@ -30,7 +39,7 @@ def create_assignment(assignment: schemas.AssignmentCreate, db: Session = Depend
         topic=assignment.topic,
         type=assignment.type,
         difficulty=assignment.difficulty,
-        questions=assignment.questions, # JSON
+        questions=questions_data, # Now passing a clean List[dict]
         status="Draft"
     )
     db.add(db_assignment)
@@ -49,3 +58,13 @@ async def analyze_assignment(id: str, db: Session = Depends(get_db)):
     
     result = await analyze_assignment_pedagogy(assignment.__dict__)
     return {"id": id, "text": result}
+
+@router.get("/{id}", response_model=schemas.AssignmentResponse)
+def get_assignment(id: str, db: Session = Depends(get_db)):
+    """
+    Fetch a specific assignment by ID to show to the student.
+    """
+    assignment = db.query(models.Assignment).filter(models.Assignment.id == id).first()
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    return assignment

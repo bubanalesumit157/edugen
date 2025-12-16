@@ -52,3 +52,35 @@ export const analyzeAssignment = async (assignment: Assignment) => {
     return "Could not perform audit at this time.";
   }
 };
+
+// Helper to get headers with Token (if you added Auth)
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+export const saveAssignment = async (assignment: Assignment) => {
+  try {
+    const response = await axios.post(
+      `${API_URL}/assignments/create`, 
+      assignment,
+      { headers: getAuthHeaders() }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error saving assignment:", error);
+    throw error;
+  }
+};
+
+
+
+export const getAssignment = async (id: string) => {
+  try {
+    const response = await axios.get(`${API_URL}/assignments/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching assignment:", error);
+    throw error; // Throw so UI knows it failed
+  }
+};

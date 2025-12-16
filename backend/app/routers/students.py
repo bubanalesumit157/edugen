@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models
@@ -6,6 +6,7 @@ import pandas as pd
 from app.ml_core.personalization.adaptive_personalizer import AdaptivePersonalizer
 from ..ml_core.grading.feedback_generator import FeedbackGenerator
 from ..ml_core.grading.partial_credit import PartialCreditEngine
+from ..services.ml_engine import grade_submission as ml_grade_submission
 from .. import schemas
 router = APIRouter()
 
@@ -71,8 +72,8 @@ def get_student_recommendations(student_id: int, db: Session = Depends(get_db)):
 
 
 
-@router.post("/grade")
-def grade_submission(submission: schemas.SubmissionCreate, db: Session = Depends(get_db)):
+@router.post("/grade", response_model=schemas.GradingResponse)
+async def grade_submission(submission: schemas.SubmissionCreate, db: Session = Depends(get_db)):
     # 1. Fetch the Assignment to get the correct answer
     assignment = db.query(models.Assignment).filter(models.Assignment.id == submission.assignment_id).first()
     
@@ -81,39 +82,59 @@ def grade_submission(submission: schemas.SubmissionCreate, db: Session = Depends
     
     # Logic to find the specific question's answer from the assignment's JSON data
     # (Assuming submission relates to a single question for now, or you need a question_id in the schema)
-    # For this example, let's assume we are grading the first question or the schema has a question_index
-    
-    target_question = assignment.questions[0] # Simplification! Needs robust logic.
+    # For this example, we grade the first question. Ensure questions is parsed correctly.
+    try:
+        questions = assignment.questions
+        if isinstance(questions, str):
+            import json
+            questions = json.loads(questions)
+        target_question = questions[0] if questions else {}
+    except Exception:
+        target_question = {}
     correct_answer = target_question.get('correctAnswer') or "Standard Answer"
 
-    # 2. Calculate Score
-    grading_result = credit_engine.calculate_partial_credit(
-        student_answer=submission.answer_text,
-        correct_answer=correct_answer,
-        max_points=100
-    )
-    
-    # 3. Generate Feedback
-    perf_data = {
-        'percentage': grading_result['percentage'],
-        'mistakes': [grading_result['mistake_type']] if grading_result['mistake_type'] else [],
-        'strengths': ['correct_method'] if grading_result['percentage'] > 80 else []
-    }
-    
-    detailed_feedback = feedback_gen.generate_feedback(perf_data)
+    # 2. Choose grading strategy based on assignment type
+    if assignment.type and assignment.type.lower() == 'written':
+        # For written/essay answers, use the ML/LLM grader
+        # Try to use the question text or rubric if available
+        question_text = target_question.get('text', '')
+        rubric_text = target_question.get('rubric')
+        ai_result = await ml_grade_submission(question_text, submission.answer_text, rubric_text)
+
+        # ai_result expected to be {"score": float, "feedback": str}
+        score_value = ai_result.get('score', 0.0)
+        feedback_text = ai_result.get('feedback', '')
+    else:
+        # Use rule-based partial credit for objective/MCQ style questions
+        grading_result = credit_engine.calculate_partial_credit(
+            student_answer=submission.answer_text,
+            correct_answer=correct_answer,
+            max_points=100
+        )
+
+        perf_data = {
+            'percentage': grading_result['percentage'],
+            'mistakes': [grading_result['mistake_type']] if grading_result['mistake_type'] else [],
+            'strengths': ['correct_method'] if grading_result['percentage'] > 80 else []
+        }
+
+        detailed_feedback = feedback_gen.generate_feedback(perf_data)
+
+        score_value = grading_result['points_earned']
+        feedback_text = detailed_feedback['feedback_text']
     
     # 4. Save Submission to DB
     new_submission = models.Submission(
         assignment_id=submission.assignment_id,
         student_id=submission.student_id,
         answer_text=submission.answer_text,
-        score=grading_result['points_earned'],
-        feedback=detailed_feedback['feedback_text']
+        score=score_value,
+        feedback=feedback_text
     )
     db.add(new_submission)
     db.commit()
     
     return {
-        "score": grading_result['points_earned'],
-        "feedback": detailed_feedback['feedback_text']
+        "score": score_value,
+        "feedback": feedback_text
     }

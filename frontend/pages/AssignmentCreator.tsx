@@ -1,239 +1,147 @@
 import React, { useState } from 'react';
-import { Sparkles, Save, Loader2, Download, RefreshCw } from 'lucide-react';
-import { generateContent, saveAssignment } from '../services/geminiService'; // Added saveAssignment
-import { Assignment, AssignmentType, Difficulty, Question } from '../types'; // Added Assignment
+import { generateContent, saveAssignment } from '../services/geminiService';
+import { AssignmentType, Difficulty } from '../types';
 
 const AssignmentCreator: React.FC = () => {
   const [topic, setTopic] = useState('');
-  const [type, setType] = useState<AssignmentType>(AssignmentType.MCQ);
-  const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.MEDIUM);
-  const [loading, setLoading] = useState(false);
-  const [generatedQuestions, setGeneratedQuestions] = useState<Question[]>([]);
-  const [hasGenerated, setHasGenerated] = useState(false);
-  const [isSaving, setIsSaving] = useState(false); // New state for save loading
+  const [type, setType] = useState<AssignmentType>('MCQ');
+  const [difficulty, setDifficulty] = useState<Difficulty>('Medium');
+  const [isLoading, setIsLoading] = useState(false);
+  const [generatedQuestions, setGeneratedQuestions] = useState<any[]>([]);
+  
+  // NEW: State to store the saved ID
+  const [savedId, setSavedId] = useState<string | null>(null);
 
   const handleGenerate = async () => {
-    if (!topic.trim()) return;
-    setLoading(true);
-    setHasGenerated(false);
-    
+    setIsLoading(true);
+    setSavedId(null); // Reset previous ID
     const questions = await generateContent(topic, type, difficulty);
     setGeneratedQuestions(questions);
-    
-    setLoading(false);
-    setHasGenerated(true);
+    setIsLoading(false);
   };
 
-  // --- NEW: Handle Save Logic ---
   const handleSave = async () => {
-    if (!generatedQuestions.length) return;
-    setIsSaving(true);
-
-    // 1. Construct the Assignment Object
-    const newAssignment: Assignment = {
-      id: crypto.randomUUID(), // Generates a unique ID (e.g., "550e8400-e29b...")
-      title: `${topic} Assessment`,
-      subject: "General", // Hardcoded for now (or add a dropdown input)
-      topic: topic,
-      type: type,
-      difficulty: difficulty,
+    if (generatedQuestions.length === 0) return;
+    
+    // Create the assignment object
+    const assignment = {
+      id: crypto.randomUUID(),
+      title: `${topic} - ${difficulty} (${type})`,
+      subject: "General", 
+      topic,
+      type,
+      difficulty,
       questions: generatedQuestions,
-      status: "Published", // Mark as published so students can see it
-      due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // Due in 7 days
+      status: 'Published'
     };
 
     try {
-      // 2. Call the Backend
-      const result = await saveAssignment(newAssignment);
-      
-      console.log("✅ Saved Assignment ID:", result.id);
-      alert(`Assignment Saved Successfully!\n\nShare this ID with students:\n${result.id}`);
-      
-      // Optional: Reset form or redirect
-    } catch (error) {
-      console.error("Failed to save:", error);
-      alert("Failed to save assignment. Check console for details.");
-    } finally {
-      setIsSaving(false);
+      await saveAssignment(assignment);
+      // NEW: Set the ID so it displays on screen
+      setSavedId(assignment.id); 
+      alert("Assignment Saved Successfully!");
+    } catch (e) {
+      alert("Error saving assignment");
     }
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-8">
-      <div>
-        <h2 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-          <Sparkles className="text-indigo-600 w-8 h-8" />
-          Intelligent Assignment Creator
-        </h2>
-        <p className="text-slate-500 mt-2">
-          Use generative AI to build curriculum-aligned assessments instantly.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Configuration Panel */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit lg:col-span-1">
-          <h3 className="font-semibold text-lg mb-6 text-slate-900">Configuration</h3>
-          
-          <div className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Topic / Curriculum Unit</label>
-              <input 
-                type="text" 
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                placeholder="e.g., Photosynthesis, World War II"
-                className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Assignment Type</label>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.values(AssignmentType).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setType(t)}
-                    className={`p-2 text-sm rounded-md border transition-all ${
-                      type === t 
-                      ? 'bg-indigo-50 border-indigo-500 text-indigo-700' 
-                      : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Difficulty Level</label>
-              <select 
-                value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value as Difficulty)}
-                className="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-              >
-                {Object.values(Difficulty).map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-            </div>
-
+    <div className="p-6 max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold mb-6 text-gray-800">Create New Assignment</h1>
+      
+      {/* NEW: Copy ID Section */}
+      {savedId && (
+        <div className="mb-8 p-4 bg-green-50 border border-green-200 rounded-lg flex flex-col items-center animate-fade-in">
+          <p className="text-green-800 font-semibold mb-2">✅ Assignment Created Successfully!</p>
+          <div className="flex items-center gap-2 bg-white p-2 border rounded shadow-sm w-full max-w-lg">
+            <code className="flex-1 text-center font-mono text-gray-700 select-all">
+              {savedId}
+            </code>
             <button 
-              onClick={handleGenerate}
-              disabled={loading || !topic}
-              className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              onClick={() => navigator.clipboard.writeText(savedId)}
+              className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
             >
-              {loading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  Generate Content
-                </>
-              )}
+              Copy
             </button>
           </div>
+          <p className="text-xs text-green-600 mt-2">Share this ID with your students.</p>
+        </div>
+      )}
+
+      {/* Input Form */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Topic</label>
+          <input 
+            value={topic} 
+            onChange={(e) => setTopic(e.target.value)}
+            className="w-full p-2 border rounded mt-1" 
+            placeholder="e.g. Photosynthesis, Linear Algebra"
+          />
         </div>
 
-        {/* Preview Panel */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 min-h-[500px] flex flex-col">
-          <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-xl">
-            <h3 className="font-semibold text-lg text-slate-900">Content Preview</h3>
-            {hasGenerated && (
-               <div className="flex gap-2">
-                 <button className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Regenerate">
-                   <RefreshCw className="w-5 h-5" />
-                 </button>
-                 <button className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="Export PDF">
-                   <Download className="w-5 h-5" />
-                 </button>
-                 
-                 {/* --- UPDATED SAVE BUTTON --- */}
-                 <button 
-                    onClick={handleSave} 
-                    disabled={isSaving}
-                    className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 text-sm font-medium transition-colors disabled:opacity-70"
-                 >
-                   {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                   {isSaving ? "Saving..." : "Save Assignment"}
-                 </button>
-               </div>
-            )}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Type</label>
+            <select 
+              value={type} 
+              onChange={(e) => setType(e.target.value as AssignmentType)}
+              className="w-full p-2 border rounded mt-1"
+            >
+              <option value="MCQ">Multiple Choice</option>
+              <option value="WRITTEN">Written / Subjective</option>
+            </select>
           </div>
-
-          <div className="p-8 flex-1">
-            {!hasGenerated && !loading && (
-              <div className="h-full flex flex-col items-center justify-center text-slate-400">
-                <Sparkles className="w-16 h-16 mb-4 text-slate-200" />
-                <p className="text-lg font-medium">Ready to generate content</p>
-                <p className="text-sm">Configure the parameters and hit generate to start.</p>
-              </div>
-            )}
-
-            {loading && (
-              <div className="h-full flex flex-col items-center justify-center text-indigo-600 space-y-4">
-                 <div className="relative w-20 h-20">
-                   <div className="absolute inset-0 border-4 border-indigo-200 rounded-full animate-pulse"></div>
-                   <div className="absolute inset-0 border-4 border-t-indigo-600 rounded-full animate-spin"></div>
-                 </div>
-                 <p className="font-medium animate-pulse">Consulting the knowledge base...</p>
-              </div>
-            )}
-
-            {hasGenerated && (
-              <div className="space-y-6 animate-fade-in-up">
-                <div className="border-b pb-4 border-slate-100">
-                    <h1 className="text-2xl font-bold text-slate-800">{topic}</h1>
-                    <div className="flex gap-4 mt-2 text-sm text-slate-500">
-                        <span className="bg-slate-100 px-2 py-1 rounded">{difficulty}</span>
-                        <span className="bg-slate-100 px-2 py-1 rounded">{type}</span>
-                    </div>
-                </div>
-
-                {generatedQuestions.map((q, idx) => (
-                  <div key={q.id} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-                    <div className="flex gap-3">
-                      <span className="flex-shrink-0 w-8 h-8 bg-white border border-slate-300 rounded-full flex items-center justify-center font-bold text-slate-500 text-sm">
-                        {idx + 1}
-                      </span>
-                      <div className="flex-1">
-                        <p className="text-slate-900 font-medium mb-3">{q.text}</p>
-                        
-                        {type === AssignmentType.MCQ && q.options && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {q.options.map((opt, i) => (
-                              <div key={i} className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-md">
-                                <div className="w-4 h-4 rounded-full border border-slate-300"></div>
-                                <span className="text-slate-600 text-sm">{opt}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        
-                        {type === AssignmentType.WRITTEN && (
-                           <div className="w-full h-24 bg-white border border-dashed border-slate-300 rounded-md p-3 text-slate-400 text-sm">
-                             Student answer space...
-                           </div>
-                        )}
-
-                        <div className="mt-4 pt-3 border-t border-slate-200">
-                           <p className="text-xs text-slate-500 font-mono">
-                             <span className="font-bold text-indigo-600">AI Key:</span> {type === AssignmentType.MCQ ? q.correctAnswer : q.rubric}
-                           </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Difficulty</label>
+            <select 
+              value={difficulty} 
+              onChange={(e) => setDifficulty(e.target.value as Difficulty)}
+              className="w-full p-2 border rounded mt-1"
+            >
+              <option value="Easy">Easy</option>
+              <option value="Medium">Medium</option>
+              <option value="Hard">Hard</option>
+            </select>
           </div>
         </div>
+
+        <button 
+          onClick={handleGenerate} 
+          disabled={isLoading || !topic}
+          className="w-full bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {isLoading ? 'Generating Questions with AI...' : 'Generate Assignment'}
+        </button>
       </div>
+
+      {/* Preview Section */}
+      {generatedQuestions.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-xl font-bold mb-4">Preview ({generatedQuestions.length} Questions)</h2>
+          <div className="space-y-4">
+            {generatedQuestions.map((q, i) => (
+              <div key={i} className="bg-white p-4 rounded shadow border-l-4 border-indigo-500">
+                <p className="font-medium text-gray-900">Q{i+1}: {q.text}</p>
+                {/* Preview Options if they exist */}
+                {q.options && q.options.length > 0 && (
+                  <ul className="mt-2 space-y-1 ml-4 list-disc text-gray-600">
+                    {q.options.map((opt: string, idx: number) => (
+                      <li key={idx}>{opt}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ))}
+          </div>
+          <button 
+            onClick={handleSave}
+            className="mt-6 w-full bg-green-600 text-white py-3 rounded text-lg font-bold hover:bg-green-700"
+          >
+            Save & Publish Assignment
+          </button>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,29 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
-from .. import models
+from .. import models, schemas
 import pandas as pd
-from app.ml_core.personalization.adaptive_personalizer import AdaptivePersonalizer
-from ..ml_core.grading.feedback_generator import FeedbackGenerator
-from ..ml_core.grading.partial_credit import PartialCreditEngine
-from ..services.ml_engine import grade_submission as ml_grade_submission
-from .. import schemas
-router = APIRouter()
+import json
 
-feedback_gen = FeedbackGenerator()
-credit_engine = PartialCreditEngine()
+# ML Services
+from app.ml_core.personalization.adaptive_personalizer import AdaptivePersonalizer
+from ..services.ml_engine import grade_submission as ml_grade_submission
+
+router = APIRouter()
 personalizer = AdaptivePersonalizer()
+
+# --- RECOMMENDATION ENDPOINT (Unchanged) ---
 @router.get("/{student_id}/recommendations")
 def get_student_recommendations(student_id: int, db: Session = Depends(get_db)):
-    # 1. Fetch History (Sorted by Time!)
     submissions = db.query(models.Submission)\
         .filter(models.Submission.student_id == student_id)\
         .order_by(models.Submission.submitted_at.asc())\
         .all()
     
-    # 2. Convert to DataFrame
     if not submissions:
-        # Cold start structure with ALL required columns to be safe
         sequences_df = pd.DataFrame(columns=[
             'student_id', 'is_correct', 'difficulty', 'topic', 'subject', 
             'score', 'timestamp', 'time_spent_seconds'
@@ -32,26 +29,21 @@ def get_student_recommendations(student_id: int, db: Session = Depends(get_db)):
     else:
         data = [{
             'student_id': str(s.student_id),
-            'subject': s.assignment.subject,  # Added Subject
+            'subject': s.assignment.subject,
             'topic': s.assignment.topic,
             'difficulty': s.assignment.difficulty,
-            'is_correct': s.score > 70,       # Heuristic
+            'is_correct': s.score > 70,
             'score': s.score,
-            'timestamp': s.submitted_at,      # Added Timestamp
-            'time_spent_seconds': 60          # Added Dummy Time
+            'timestamp': s.submitted_at,
+            'time_spent_seconds': 60
         } for s in submissions]
         
         sequences_df = pd.DataFrame(data)
-        
-        # Calculate performance metrics
-        # We also count total_attempts, which is useful for the personalizer
         perf_df = sequences_df.groupby(['student_id', 'subject', 'topic']).agg(
             accuracy=('is_correct', 'mean'),
             total_attempts=('is_correct', 'count')
         ).reset_index()
 
-    # 3. Run Personalizer
-    # We wrap this in a try-catch because ML models can be fragile with data shapes
     try:
         recommendation = personalizer.personalize_assignment(
             student_id=str(student_id),
@@ -62,68 +54,54 @@ def get_student_recommendations(student_id: int, db: Session = Depends(get_db)):
         return recommendation
     except Exception as e:
         print(f"Personalization Error: {e}")
-        # Fallback response if ML fails
         return {
             "difficulty_recommendation": {"primary_difficulty": "Medium"},
             "topic_recommendations": [],
             "message": "Generated via fallback logic."
         }
-        
 
-
-
+# --- FIXED GRADING ENDPOINT ---
 @router.post("/grade", response_model=schemas.GradingResponse)
 async def grade_submission(submission: schemas.SubmissionCreate, db: Session = Depends(get_db)):
-    # 1. Fetch the Assignment to get the correct answer
+    # 1. Fetch Assignment
     assignment = db.query(models.Assignment).filter(models.Assignment.id == submission.assignment_id).first()
-    
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
     
-    # Logic to find the specific question's answer from the assignment's JSON data
-    # (Assuming submission relates to a single question for now, or you need a question_id in the schema)
-    # For this example, we grade the first question. Ensure questions is parsed correctly.
+    # 2. Parse ALL Questions & Answers from DB
     try:
-        questions = assignment.questions
-        if isinstance(questions, str):
-            import json
-            questions = json.loads(questions)
-        target_question = questions[0] if questions else {}
-    except Exception:
-        target_question = {}
-    correct_answer = target_question.get('correctAnswer') or "Standard Answer"
+        questions_data = assignment.questions
+        if isinstance(questions_data, str):
+            questions_data = json.loads(questions_data)
+        
+        # ✅ FIX: Construct a "Master Key" containing ALL questions and their correct answers
+        reference_context = "Here is the OFFICIAL ANSWER KEY for the assignment:\n\n"
+        
+        for idx, q in enumerate(questions_data):
+            q_text = q.get('text', 'Unknown Question')
+            q_ans = q.get('correctAnswer') or q.get('answer_key') or "Check manually"
+            q_rubric = q.get('rubric') or q.get('explanation') or "No rubric"
+            
+            reference_context += f"Q{idx+1}: {q_text}\nCORRECT ANSWER: {q_ans}\nEXPLANATION/RUBRIC: {q_rubric}\n\n"
+            
+    except Exception as e:
+        print(f"Error parsing questions: {e}")
+        reference_context = "Error loading answer key. Grade based on general knowledge."
 
-    # 2. Choose grading strategy based on assignment type
-    if assignment.type and assignment.type.lower() == 'written':
-        # For written/essay answers, use the ML/LLM grader
-        # Try to use the question text or rubric if available
-        question_text = target_question.get('text', '')
-        rubric_text = target_question.get('rubric')
-        ai_result = await ml_grade_submission(question_text, submission.answer_text, rubric_text)
-
-        # ai_result expected to be {"score": float, "feedback": str}
-        score_value = ai_result.get('score', 0.0)
-        feedback_text = ai_result.get('feedback', '')
-    else:
-        # Use rule-based partial credit for objective/MCQ style questions
-        grading_result = credit_engine.calculate_partial_credit(
-            student_answer=submission.answer_text,
-            correct_answer=correct_answer,
-            max_points=100
-        )
-
-        perf_data = {
-            'percentage': grading_result['percentage'],
-            'mistakes': [grading_result['mistake_type']] if grading_result['mistake_type'] else [],
-            'strengths': ['correct_method'] if grading_result['percentage'] > 80 else []
-        }
-
-        detailed_feedback = feedback_gen.generate_feedback(perf_data)
-
-        score_value = grading_result['points_earned']
-        feedback_text = detailed_feedback['feedback_text']
+    # 3. Grade using AI (Compare Student Input vs. Master Key)
+    # We use the AI for BOTH MCQ and Written because it handles the "Q1: A..." string format best.
+    print(f"🤖 Sending to AI Grader. \nStudent: {submission.answer_text[:50]}...\nContext Length: {len(reference_context)}")
     
-    # 4. Save Submission to DB
+    ai_result = await ml_grade_submission(
+        question_text=reference_context, # Passing the full key as context
+        student_answer=submission.answer_text,
+        rubric="Compare the student's answers strictly against the provided ANSWER KEY. For MCQs, ensure the option matches."
+    )
+
+    score_value = ai_result.get('score', 0.0)
+    feedback_text = ai_result.get('feedback', 'No feedback provided.')
+
+    # 4. Save Submission
     new_submission = models.Submission(
         assignment_id=submission.assignment_id,
         student_id=submission.student_id,

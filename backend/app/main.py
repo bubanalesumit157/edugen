@@ -8,7 +8,8 @@ load_dotenv()  # This loads the variables from .env
 # Import local modules
 from . import models, schemas, auth, database
 from .routers import assignments, students
-
+from .routers import analytics # Import
+# ... inside app ...
 # --- Database Initialization ---
 # This automatically creates all tables (users, assignments, etc.) in the database 
 # if they don't exist when the app starts.
@@ -41,6 +42,7 @@ app.add_middleware(
 )
 
 # --- Authentication Routes ---
+
 
 @app.post("/register", response_model=schemas.UserResponse, tags=["Authentication"])
 def register_user(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
@@ -102,7 +104,7 @@ async def read_users_me(current_user: models.User = Depends(auth.get_current_use
 # This keeps main.py clean by offloading logic to dedicated files.
 app.include_router(assignments.router, prefix="/assignments", tags=["Assignments"])
 app.include_router(students.router, prefix="/student", tags=["Student Portal"])
-
+app.include_router(analytics.router, prefix="/analytics", tags=["Analytics"])
 # --- Health Check ---
 @app.get("/")
 def read_root():

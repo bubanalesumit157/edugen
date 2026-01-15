@@ -1,151 +1,88 @@
-import React from 'react';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar
-} from 'recharts';
-import { Brain, TrendingUp, AlertTriangle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { TrendingUp, Users, Award, AlertCircle, Loader2 } from 'lucide-react';
+import axios from 'axios';
 
 const AnalyticsDashboard: React.FC = () => {
-  // Mock Data for "Member 4" ML requirements
-  const performanceData = [
-    { name: 'Week 1', avgScore: 65, predicted: 68 },
-    { name: 'Week 2', avgScore: 72, predicted: 70 },
-    { name: 'Week 3', avgScore: 78, predicted: 75 },
-    { name: 'Week 4', avgScore: 74, predicted: 79 },
-    { name: 'Week 5', avgScore: 82, predicted: 81 },
-    { name: 'Week 6', avgScore: 88, predicted: 85 },
-  ];
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const topicMasteryData = [
-    { subject: 'Algebra', A: 120, fullMark: 150 },
-    { subject: 'Geometry', A: 98, fullMark: 150 },
-    { subject: 'Calculus', A: 86, fullMark: 150 },
-    { subject: 'Statistics', A: 99, fullMark: 150 },
-    { subject: 'Trigonometry', A: 85, fullMark: 150 },
-    { subject: 'Physics', A: 65, fullMark: 150 },
-  ];
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await axios.get('http://localhost:8000/analytics/dashboard');
+        setData(res.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
-  const studentStrengthData = [
-    { name: 'Reasoning', val: 80 },
-    { name: 'Memory', val: 90 },
-    { name: 'Application', val: 60 },
-    { name: 'Analysis', val: 70 },
-    { name: 'Evaluation', val: 50 },
-    { name: 'Creation', val: 40 }, // Bloom's Taxonomy levels
-  ];
+  if (loading) return <div className="flex justify-center p-20"><Loader2 className="animate-spin" /></div>;
+  if (!data) return <div>No data available.</div>;
 
   return (
-    <div className="p-8 space-y-8 max-w-7xl mx-auto">
-       <div className="flex items-center justify-between">
-         <div>
-            <h2 className="text-3xl font-bold text-slate-900">Performance Analytics</h2>
-            <p className="text-slate-500 mt-2">ML-powered insights into student performance and curriculum efficacy.</p>
-         </div>
-         <div className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 border border-indigo-100">
-            <Brain className="w-4 h-4" />
-            Predictive Model v2.4 Active
-         </div>
-       </div>
+    <div className="p-8 space-y-8 animate-fade-in">
+      <h2 className="text-3xl font-bold text-slate-900">Class Performance Analytics</h2>
 
-       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-         {/* Performance Trend & Prediction */}
-         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-           <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-             <TrendingUp className="w-5 h-5 text-emerald-500" />
-             Class Performance Trajectory
-           </h3>
-           <div className="h-80 w-full">
-             <ResponsiveContainer width="100%" height="100%">
-               <LineChart data={performanceData}>
-                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                 <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
-                 <YAxis stroke="#64748b" fontSize={12} />
-                 <Tooltip 
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                 />
-                 <Legend />
-                 <Line type="monotone" dataKey="avgScore" name="Actual Avg." stroke="#6366f1" strokeWidth={3} activeDot={{ r: 8 }} />
-                 <Line type="monotone" dataKey="predicted" name="ML Prediction" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" />
-               </LineChart>
-             </ResponsiveContainer>
-           </div>
-           <p className="text-sm text-slate-500 mt-4 text-center">
-             Dashed line represents ML-predicted outcomes based on engagement metrics.
-           </p>
-         </div>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex justify-between items-center">
+             <div><p className="text-slate-500">Class Average</p><h3 className="text-3xl font-bold text-slate-900">{data.overall_average}%</h3></div>
+             <TrendingUp className="text-green-500 w-8 h-8" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex justify-between items-center">
+             <div><p className="text-slate-500">Total Submissions</p><h3 className="text-3xl font-bold text-slate-900">{data.total_submissions}</h3></div>
+             <Users className="text-blue-500 w-8 h-8" />
+          </div>
+        </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          <div className="flex justify-between items-center">
+             <div><p className="text-slate-500">Topics Covered</p><h3 className="text-3xl font-bold text-slate-900">{data.topic_performance.length}</h3></div>
+             <Award className="text-purple-500 w-8 h-8" />
+          </div>
+        </div>
+      </div>
 
-         {/* Topic Mastery Radar */}
-         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-           <h3 className="font-bold text-slate-800 mb-6">Bloom's Taxonomy Breakdown</h3>
-           <div className="h-80 w-full">
-             <ResponsiveContainer width="100%" height="100%">
-               <RadarChart cx="50%" cy="50%" outerRadius="80%" data={studentStrengthData}>
-                 <PolarGrid stroke="#e2e8f0" />
-                 <PolarAngleAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 12 }} />
-                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} />
-                 <Radar name="Class Average" dataKey="val" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.4} />
-                 <Tooltip />
-               </RadarChart>
-             </ResponsiveContainer>
-           </div>
-           <p className="text-sm text-slate-500 mt-4 text-center">
-             Analysis of student capabilities across cognitive levels.
-           </p>
-         </div>
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white p-6 rounded-xl shadow-sm border">
+          <h3 className="font-bold mb-6">Performance by Topic</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={data.topic_performance}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="score" fill="#6366f1" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
-         {/* At Risk Students - Recommendation Engine */}
-         <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-500" />
-                Intervention Required
-            </h3>
-            <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                    <thead>
-                        <tr className="bg-slate-50 text-slate-600 text-sm">
-                            <th className="p-3 font-medium">Student Name</th>
-                            <th className="p-3 font-medium">Current Grade</th>
-                            <th className="p-3 font-medium">Risk Factor</th>
-                            <th className="p-3 font-medium">Suggested Action</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        <tr>
-                            <td className="p-3 text-slate-800 font-medium">Alex Johnson</td>
-                            <td className="p-3 text-red-600 font-bold">62%</td>
-                            <td className="p-3">
-                                <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs">High Risk</span>
-                            </td>
-                            <td className="p-3 text-sm text-slate-600">Assign remedial "Algebra Basics" module.</td>
-                        </tr>
-                        <tr>
-                            <td className="p-3 text-slate-800 font-medium">Sam Smith</td>
-                            <td className="p-3 text-amber-600 font-bold">71%</td>
-                            <td className="p-3">
-                                <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs">Moderate</span>
-                            </td>
-                            <td className="p-3 text-sm text-slate-600">Schedule 1:1 review session for Geometry.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-         </div>
-       </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border">
+          <h3 className="font-bold mb-6">Learning Trend (Last 7 Days)</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data.timeline_data}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis domain={[0, 100]} />
+                <Tooltip />
+                <Line type="monotone" dataKey="score" stroke="#10b981" strokeWidth={3} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
-
 export default AnalyticsDashboard;

@@ -7,65 +7,55 @@ from langchain_core.output_parsers import StrOutputParser
 # Load Keys
 load_dotenv()
 
-def validate_question_difficulty(question, target_level):
+def get_bloom_chain():
     """
-    Checks if a generated question actually matches the requested Bloom's Taxonomy level.
-    Levels: Remember, Understand, Apply, Analyze, Evaluate, Create.
+    Creates a chain that analyzes an entire assignment's pedagogical quality.
+    Called by ml_engine.py -> analyze_assignment_pedagogy
     """
-    
-    # 1. Setup the Auditor AI (Llama 3.3)
+    # 1. Setup the Analyst AI
     llm = ChatGroq(
         model="llama-3.3-70b-versatile", 
-        temperature=0.0 # Zero temp for strict logical analysis
+        temperature=0.3
     )
 
-    # 2. The Auditor Prompt
+    # 2. The Analyst Prompt
     template = """
     You are an expert Pedagogy Consultant specialized in Bloom's Taxonomy.
     
-    Task: Verify if the question matches the target Cognitive Level.
+    Task: Analyze the following exam assignment and provide a pedagogical audit.
     
-    Target Level: {target_level}
-    Question to Check: "{question}"
+    ASSIGNMENT CONTENT:
+    {assignment_content}
     
-    Bloom's Levels Reference:
-    - Remember: Recall facts, define terms.
-    - Understand: Explain ideas, summarize.
-    - Apply: Use information in new situations.
-    - Analyze: Draw connections, differentiate.
-    - Evaluate: Justify a stand or decision.
-    - Create: Produce new or original work.
+    Please provide a report covering:
+    1. **Bloom's Level Distribution:** (e.g., mostly Recall vs. Critical Thinking?)
+    2. **Topic Coverage:** Is the assignment focused or scattered?
+    3. **Difficulty Consistency:** Are the questions consistent with a single difficulty level?
+    4. **Improvement Suggestions:** 2-3 specific ways to make this assignment better.
     
-    Output exactly in this format:
-    **Match:** [Yes/No]
-    **Actual Level:** [The level you think it is]
-    **Reasoning:** [Brief explanation]
-    **Improvement:** [If No, rewrite the question to match the Target Level]
+    Keep the tone professional and constructive.
     """
     
     prompt = ChatPromptTemplate.from_template(template)
 
-    # 3. Run the Chain
+    # 3. Return the Chain
     chain = prompt | llm | StrOutputParser()
     
-    print(f"🕵️  Auditing question against level: '{target_level}'...")
-    result = chain.invoke({
-        "question": question, 
-        "target_level": target_level
-    })
-    
-    return result
+    return chain
 
+# --- Legacy/Test Function (Optional, kept if you want to run manually) ---
 if __name__ == "__main__":
-    print("⚖️ --- BLOOM'S TAXONOMY AUDITOR ---")
+    print("⚖️ --- BLOOM'S TAXONOMY AUDITOR (TEST MODE) ---")
     
-    # Test Data
-    # Let's try to trick it with a mismatch
-    q_input = input("Enter a Question to check: ")
-    level_input = input("What level SHOULD it be? (e.g., Analyze, Remember): ")
+    chain = get_bloom_chain()
     
-    feedback = validate_question_difficulty(q_input, level_input)
+    test_content = """
+    Title: Photosynthesis Quiz
+    - What is the chemical formula for glucose?
+    - Define chlorophyll.
+    - List the stages of the Calvin Cycle.
+    """
     
-    print("\n" + "="*40)
-    print(feedback)
-    print("="*40)
+    print("⏳ Analyzing test content...")
+    result = chain.invoke({"assignment_content": test_content})
+    print(result)

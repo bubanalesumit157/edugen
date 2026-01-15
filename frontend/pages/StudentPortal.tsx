@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { autoGradeSubmission, getAssignment } from '../services/geminiService';
 import { getCurrentUser } from '../services/authService';
+import { useEffect } from 'react';
+import axios from 'axios';
+
 
 const StudentPortal: React.FC = () => {
   const [step, setStep] = useState(1);
@@ -13,6 +16,26 @@ const StudentPortal: React.FC = () => {
   const [feedback, setFeedback] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
+// Add state
+const [recommendation, setRecommendation] = useState<any>(null);
+
+  // Add useEffect
+  useEffect(() => {
+    const fetchRecs = async () => {
+      const user = getCurrentUser();
+      if (user && user.id) {
+          try {
+            // Calls the endpoint we defined in students.py
+            const res = await axios.get(`http://localhost:8000/student/${user.id}/recommendations`);
+            setRecommendation(res.data);
+          } catch (e) {
+            console.log("No history yet");
+          }
+      }
+    };
+    fetchRecs();
+  }, []);
+  
   // 1. Load Assignment
   const handleLoadAssignment = async () => {
     if (!assignmentId) return alert("Please enter an ID");
@@ -31,7 +54,31 @@ const StudentPortal: React.FC = () => {
       setLoading(false);
     }
   };
-
+  // RENDER: Insert this right below the "Load Assignment" input box in Step 1
+  {recommendation && (
+    <div className="mt-8 p-6 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-100">
+      <div className="flex items-start gap-4">
+        <div className="bg-white p-2 rounded-full shadow-sm text-2xl">💡</div>
+        <div>
+          <h3 className="font-bold text-purple-900">Recommended for You</h3>
+          <p className="text-purple-700 text-sm mt-1">{recommendation.message}</p>
+          
+          {recommendation.topic_recommendations?.length > 0 && (
+            <div className="mt-3 flex gap-2">
+              {recommendation.topic_recommendations.map((topic: string) => (
+                <span key={topic} className="px-3 py-1 bg-white text-purple-600 text-xs font-bold rounded-full shadow-sm border border-purple-100">
+                  {topic}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="mt-2 text-xs font-semibold text-indigo-600">
+            Suggested Difficulty: {recommendation.difficulty_recommendation?.primary_difficulty}
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
   // 2. Handle Input Change
   const handleAnswerChange = (questionId: string, value: string) => {
     setAnswers(prev => ({

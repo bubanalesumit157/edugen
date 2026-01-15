@@ -8,7 +8,7 @@ import StudentPortal from './pages/StudentPortal';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import AssignmentsList from './pages/AssignmentsList';
 import Login from './pages/login'; // <--- IMPORT LOGIN
-
+import StudentInsights from './pages/StudentInsights'; // <--- IMPORT INSIGHTS PAGE
 // Layout component for authenticated pages (Sidebar + Content)
 const MainLayout = () => (
   <div className="flex min-h-screen bg-slate-50">
@@ -33,6 +33,7 @@ const App: React.FC = () => {
           <Route path="/assignments" element={<AssignmentsList />} />
           <Route path="/student-portal" element={<StudentPortal />} />
           <Route path="/analytics" element={<AnalyticsDashboard />} />
+          <Route path="/insights" element={<StudentInsights />} />
         </Route>
 
         {/* Catch-all: Redirect unknown URLs to Login */}

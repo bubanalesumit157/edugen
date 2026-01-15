@@ -1,84 +1,60 @@
-import os
-from dotenv import load_dotenv
+# backend/app/ml_core/src/chains/grading.py
+
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from app.ml_core.src.retrieval.retriever import get_retriever
+from langchain_core.output_parsers import JsonOutputParser
+from langchain_core.pydantic_v1 import BaseModel, Field
+from dotenv import load_dotenv
 
-# Load API Keys
 load_dotenv()
 
-def grade_student_answer(question, student_answer):
-    """
-    Grades a student's answer by comparing it to the textbook content.
-    """
-    
-    # 1. Retrieve the "Ground Truth" from the textbook
-    print(f"🔍 Fetching official answers for: '{question}'...")
-    retriever = get_retriever()
-    if not retriever:
-        return "Error: Database not found."
-    
-    docs = retriever.invoke(question)
-    if not docs:
-        return "❌ Error: Could not find relevant textbook content to grade this."
-    
-    context_text = "\n\n".join(doc.page_content for doc in docs)
+# Define the expected JSON structure
+class GradingOutput(BaseModel):
+    score: int = Field(description="Score between 0 and 100")
+    feedback: str = Field(description="Detailed feedback explaining the score and any mistakes")
 
-    # 2. Setup the Grader AI (Llama 3.3)
+def get_grading_chain():
+    # Use JSON mode for the LLM
     llm = ChatGroq(
         model="llama-3.3-70b-versatile", 
-        temperature=0.3 # Low temp = strict and consistent grading
+        temperature=0.1, # Low temp for consistent grading
+        model_kwargs={"response_format": {"type": "json_object"}}
     )
 
-    # 3. The Grading Prompt
+    parser = JsonOutputParser(pydantic_object=GradingOutput)
+    
+    # Template includes {format_instructions}
     template = """
-    You are a strict academic grader for Grade 11/12 Physics & Chemistry.
+    You are an expert AI Grader. 
     
-    Reference Material (from NCERT):
-    {context}
+    Compare the Student Submission against the Master Answer Key.
     
-    Question: {question}
-    Student Answer: {student_answer}
+    MASTER KEY:
+    {question}
     
-    Task:
-    Evaluate the student's answer based ONLY on the Reference Material.
+    STUDENT SUBMISSION:
+    {student_answer}
     
-    Output Format:
-    **Score:** [0-10]
-    **Verdict:** [Correct / Partially Correct / Incorrect]
-    **Feedback:** [One sentence explaining the mistake or praise]
-    **Missing Concepts:** [List key terms/concepts missing from the answer, if any]
+    RUBRIC/INSTRUCTIONS:
+    {rubric}
+    
+    GRADING RULES:
+    1. If the student answers "A" and the key matches "A", give full points.
+    2. For written answers, look for key concepts rather than exact wording.
+    3. Be fair but strict.
+    
+    {format_instructions}
     """
-    
-    prompt = ChatPromptTemplate.from_template(template)
 
-    # 4. Run the Chain
-    grading_chain = (
-        prompt
-        | llm
-        | StrOutputParser()
+    # --- FIX IS HERE: We pre-fill 'format_instructions' so the caller doesn't have to ---
+    prompt = ChatPromptTemplate.from_template(template).partial(
+        format_instructions=parser.get_format_instructions()
     )
-    
-    print("📝 Grading the answer...")
-    result = grading_chain.invoke({
-        "context": context_text,
-        "question": question,
-        "student_answer": student_answer
-    })
-    
-    return result
 
-if __name__ == "__main__":
-    print("🎓 --- AI AUTOMATED GRADER ---")
-    
-    # Inputs
-    q = input("Enter Question: ")
-    ans = input("Enter Student Answer: ")
-    
-    # Run Grading
-    feedback = grade_student_answer(q, ans)
-    
-    print("\n" + "="*40)
-    print(feedback)
-    print("="*40)
+    chain = (
+        prompt 
+        | llm 
+        | parser
+    )
+
+    return chain

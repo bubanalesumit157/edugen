@@ -1,75 +1,55 @@
-import pandas as pd
-from app.ml_core.grading.partial_credit import PartialCreditEngine
-from app.ml_core.grading.feedback_generator import FeedbackGenerator
-from app.ml_core.grading.rubric_manager import RubricManager
-import re
-# Initialize singletons
-grader_engine = PartialCreditEngine(strategy='standard')
-feedback_gen = FeedbackGenerator()
-rubric_mgr = RubricManager()
+# backend/app/services/ml_engine.py
 
-async def grade_submission(question: str, student_answer: str, rubric_text: str = None):
-    """
-    Integrates PartialCreditEngine and FeedbackGenerator.
-    """
-    # 1. Calculate Score (Simplified logic for text comparison or use LLM grader from src/chains/grading.py)
-    # If using the rule-based PartialCreditEngine, we need numeric or exact matches.
-    # For text essays, we should use the LLM grader in ml_core/src/chains/grading.py
-    
-    from app.ml_core.src.chains.grading import grade_student_answer
-    
-    # Use the LangChain Grader for text/conceptual answers
-    ai_grading_result = grade_student_answer(question, student_answer)
-    
-    # Attempt to parse score from AI text result (e.g., "Score: 8/10")
-    # This is a basic fallback extraction
-    match = re.search(r"Score:?\*?\*?\s*([\d\.]+)", ai_grading_result, re.IGNORECASE)
-    
-    score = 70.0 # Default fallback
-    if match:
-        try:
-            raw_score = float(match.group(1))
-            # Normalize: If score is 0-10, convert to 0-100
-            if raw_score <= 10:
-                score = raw_score * 10
-            else:
-                score = raw_score
-        except ValueError:
-            pass
-        
-    # 2. Generate Constructive Feedback
-    # Convert AI result into format expected by FeedbackGenerator
-    performance_data = {
-        'percentage': score,
-        'mistakes': [], # AI grader can populate this
-        'strengths': ['completed_submission']
-    }
-    
-    detailed_feedback = feedback_gen.generate_feedback(performance_data)
-    
-    return {
-        "score": score,
-        "feedback": f"{ai_grading_result}\n\n{detailed_feedback['feedback_text']}"
-    }
+from app.ml_core.src.chains.grading import get_grading_chain
+from app.ml_core.src.chains.bloom_validator import get_bloom_chain
 
-async def analyze_assignment_pedagogy(assignment_dict: dict):
+async def grade_submission(question_text: str, student_answer: str, rubric: str = ""):
     """
-    Uses SHAP analyzer or Bloom validator from ML Core
+    Grades a student's submission using the AI grading chain.
+    
+    Args:
+        question_text: The Master Answer Key / Context (passed from students.py)
+        student_answer: The text submitted by the student
+        rubric: Specific instructions for grading
     """
-    from app.ml_core.src.chains.bloom_validator import validate_question_difficulty
-    
-    analysis_report = []
-    
-    # Analyze the first few questions
-    questions = assignment_dict.get('questions', [])
-    target_difficulty = assignment_dict.get('difficulty', 'Medium')
-    
-    for q in questions[:3]: # Limit to 3 for performance
-        q_text = q.get('text', '')
-        # Map difficulty to Bloom's
-        bloom_target = "Analyze" if target_difficulty == "Hard" else "Apply"
+    try:
+        # Get the AI Chain
+        chain = get_grading_chain()
         
-        result = validate_question_difficulty(q_text, bloom_target)
-        analysis_report.append(f"Q: {q_text[:30]}... -> {result}")
+        # Invoke the chain with the matched arguments
+        # We map 'question_text' (which contains the full context) to 'question'
+        response = chain.invoke({
+            "question": question_text, 
+            "student_answer": student_answer,
+            "rubric": rubric
+        })
         
-    return "\n\n".join(analysis_report)
+        # The chain should return a Dictionary with 'score' and 'feedback'
+        # If it returns a string (older version), we might need to parse it, 
+        # but the JSON update should handle this.
+        return response
+
+    except Exception as e:
+        print(f"❌ Grading Engine Error: {e}")
+        return {
+            "score": 0, 
+            "feedback": "Error during AI grading. Please try again."
+        }
+
+async def analyze_assignment_pedagogy(assignment_data: dict):
+    """
+    Analyzes the pedagogical quality of an assignment using Bloom's Taxonomy.
+    """
+    try:
+        chain = get_bloom_chain()
+        
+        # Convert assignment dict to a readable string for the AI
+        content_str = f"Title: {assignment_data.get('title')}\n"
+        for q in assignment_data.get('questions', []):
+            content_str += f"- {q.get('text')}\n"
+
+        result = chain.invoke({"assignment_content": content_str})
+        return result
+    except Exception as e:
+        print(f"Analysis Error: {e}")
+        return "Could not analyze assignment at this time."

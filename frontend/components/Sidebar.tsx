@@ -6,7 +6,8 @@ import {
   GraduationCap, 
   BarChart3, 
   Settings,
-  BrainCircuit
+  BrainCircuit,
+  Users
 } from 'lucide-react';
 
 const Sidebar: React.FC = () => {
@@ -16,6 +17,7 @@ const Sidebar: React.FC = () => {
     { to: '/assignments', icon: BookOpen, label: 'Assignments' },
     { to: '/student-portal', icon: GraduationCap, label: 'Student Portal' },
     { to: '/analytics', icon: BarChart3, label: 'Analytics' },
+    { to: '/insights', icon: Users, label: 'Student Insights' }
   ];
 
   return (

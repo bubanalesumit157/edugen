@@ -84,3 +84,23 @@ export const getAssignment = async (id: string) => {
     throw error; // Throw so UI knows it failed
   }
 };
+
+// project_clean_archive/frontend/services/geminiService.ts
+
+// ... existing code ...
+
+export const fetchAssignments = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/assignments/`);
+    
+    // Map Backend Python keys (snake_case) to Frontend TS keys (camelCase)
+    return response.data.map((item: any) => ({
+      ...item,
+      createdAt: item.created_at, // Map created_at -> createdAt
+      dueDate: item.due_date      // Map due_date -> dueDate
+    }));
+  } catch (error) {
+    console.error("Error fetching assignments:", error);
+    return [];
+  }
+};

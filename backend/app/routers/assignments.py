@@ -68,3 +68,16 @@ def get_assignment(id: str, db: Session = Depends(get_db)):
     if not assignment:
         raise HTTPException(status_code=404, detail="Assignment not found")
     return assignment
+
+# backend/app/routers/assignments.py
+from typing import List # Import List
+# ... existing imports ...
+
+@router.get("/", response_model=List[schemas.AssignmentResponse])
+def list_assignments(db: Session = Depends(get_db)):
+    """
+    Fetch all assignments from the database.
+    """
+    # Orders by newest first
+    assignments = db.query(models.Assignment).order_by(models.Assignment.created_at.desc()).all()
+    return assignments
